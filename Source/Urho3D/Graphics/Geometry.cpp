@@ -31,6 +31,12 @@
 
 #include "../DebugNew.h"
 
+//Static batching
+#include "../IO/VectorBuffer.h"
+
+
+#include <iostream>
+
 namespace Urho3D
 {
 
@@ -399,6 +405,187 @@ void Geometry::GetPositionBufferIndex()
 
     // No vertex buffer with positions
     positionBufferIndex_ = M_MAX_UNSIGNED;
+}
+    
+//Static Batching
+Geometry* Geometry::CreatePretransformedList(PODVector<Matrix3x4> transforms, bool applyTransforms) const
+{
+    // Perform easy early-out tests
+    if (transforms.Size() == 0)
+        return 0;
+    if (vertexBuffers_.Size() == 0)
+    {
+        URHO3D_LOGERROR("Unable to create pretransformed geometry for empty geometry");
+        return 0;
+    }
+    if (vertexBuffers_.Size() > 1)
+    {
+        URHO3D_LOGERROR("Geometries with multiple buffers may not be merged into pretransformed lists.");
+        return 0;
+    }
+
+    // Check whether this is likely to be valid geometry.
+    const unsigned srcVertexCt = GetVertexCount();
+    const unsigned srcVertexSize = vertexBuffers_[0]->GetVertexSize();
+    if (srcVertexSize == 0)
+    {
+        URHO3D_LOGERROR("VertexBuffer does not contain data: vertex size = 0");
+        return 0;
+    }
+    if (srcVertexCt == 0)
+    {
+        URHO3D_LOGERROR("VertexBuffer does not contain data: vertex count = 0");
+        return 0;
+    }
+
+    // Grab source element mask and also make grab the shadow data and verify it's fine
+    const unsigned srcElemMask = vertexBuffers_[0]->GetElementMask();
+    const unsigned char* srcVertData = vertexBuffers_[0]->GetShadowData();
+    const unsigned char* srcIndexData = indexBuffer_ ? indexBuffer_->GetShadowData() : 0;
+    if (!srcVertData)
+    {
+        URHO3D_LOGERROR("No shadow data for concatenating geometry");
+        return 0;
+    }
+
+    // Prepare to construct the vertex buffer
+    //Geometry* combinedGeometry = new Geometry(context_);
+    SharedPtr<Geometry> combinedGeometry(new Geometry(context_));
+    //VertexBuffer* combinedVertBuffer = new VertexBuffer(context_, false);
+    SharedPtr<VertexBuffer> combinedVertBuffer(new VertexBuffer(context_));
+    std::cout << "Vertex Count: " << GetVertexCount() << std::endl;
+    std::cout << "Transform Size: " << transforms.Size() << std::endl;
+
+    combinedVertBuffer->SetShadowed(true);
+    combinedVertBuffer->SetSize(GetVertexCount() * transforms.Size(), srcElemMask, true);
+    //combinedVertBuffer->SetSize(this->GetVertexCount() * transforms.Size(), MASK_POSITION|MASK_NORMAL);
+    VectorBuffer vertexData;
+    
+    // Initial write of the vertex data as received
+    for (unsigned objIndex = 0; objIndex < transforms.Size(); ++objIndex)
+        vertexData.Write(srcVertData + GetVertexStart() * srcVertexSize, srcVertexCt * srcVertexSize);
+
+    if (applyTransforms)
+    {
+        // Grab the element offsets to see what we need to transform
+        const unsigned posOffset = VertexBuffer::GetElementOffset(srcElemMask, ELEMENT_POSITION);
+        const unsigned normOffset = srcElemMask & MASK_NORMAL ? VertexBuffer::GetElementOffset(srcElemMask, ELEMENT_NORMAL) : -1;
+        const unsigned tangentOffset = srcElemMask & MASK_TANGENT ? VertexBuffer::GetElementOffset(srcElemMask, ELEMENT_TANGENT) : -1;
+        const unsigned cubeCoord1Offset = srcElemMask & MASK_CUBETEXCOORD1 ? VertexBuffer::GetElementOffset(srcElemMask, ELEMENT_CUBETEXCOORD1) : -1;
+        const unsigned cubeCoord2Offset = srcElemMask & MASK_CUBETEXCOORD2 ? VertexBuffer::GetElementOffset(srcElemMask, ELEMENT_CUBETEXCOORD2) : -1;
+
+        // Transform the vertex elements that need to be transformed
+        for (unsigned objIndex = 0; objIndex < transforms.Size(); ++objIndex)
+        {
+            const Matrix3x4 transform = transforms[objIndex];
+            const Matrix3 rotationMat = transform.RotationMatrix();
+
+            // (objIndex * srcVertexSize * srcVertexCt) == byte offset into the current object
+            // (vertIndex * srcVertexSize) + offsetName) == byte offset into where the current element is
+            #define VERT_ASSIGNMENT(vecType, offsetName, transMat) *((vecType*)(vertexData.GetModifiableData() + (objIndex * srcVertexSize * srcVertexCt) + (vertIndex * srcVertexSize) + offsetName)) = transMat * *((vecType*)(vertexData.GetData() + (objIndex * srcVertexSize * srcVertexCt) + (vertIndex * srcVertexSize) + offsetName));
+            for (unsigned vertIndex = 0; vertIndex < GetVertexCount(); ++vertIndex)
+            {
+                if (posOffset != M_MAX_UNSIGNED)
+                    VERT_ASSIGNMENT(Vector3, posOffset, transform);
+                if (normOffset != M_MAX_UNSIGNED)
+                    VERT_ASSIGNMENT(Vector3, normOffset, rotationMat);
+                if (tangentOffset != M_MAX_UNSIGNED)
+                    VERT_ASSIGNMENT(Vector3, tangentOffset, rotationMat);
+                if (cubeCoord1Offset != M_MAX_UNSIGNED)
+                    VERT_ASSIGNMENT(Vector3, cubeCoord1Offset, rotationMat);
+                if (cubeCoord2Offset != M_MAX_UNSIGNED)
+                    VERT_ASSIGNMENT(Vector3, cubeCoord2Offset, rotationMat);
+            }
+            #undef VERT_ASSIGNMENT
+        }
+    }
+
+    // Setup the combined geometry
+    combinedVertBuffer->SetData(vertexData.GetData());
+    combinedGeometry->SetNumVertexBuffers(1);
+    combinedGeometry->SetVertexBuffer(0, combinedVertBuffer, srcElemMask);
+    
+    // If there are indices, then construct the index buffer
+    unsigned indexCount = 0;
+    if (indexBuffer_.NotNull() && srcIndexData)
+    {
+        // Prepare and size the buffers
+        IndexBuffer* combinedIndexBuffer = new IndexBuffer(context_, false);
+        VectorBuffer indexData;
+        indexCount = GetIndexCount() * transforms.Size();
+        
+        #define M_MAX_USHORT 0xFFFF
+        const bool largeIndices = indexCount > M_MAX_USHORT;
+        #undef M_MAX_USHORT
+
+        // Setup buffer
+        if (largeIndices)
+        {
+            combinedIndexBuffer->SetSize(indexCount, true, false);
+            indexData.Resize(indexCount * sizeof(unsigned int));
+        }
+        else
+        {
+            combinedIndexBuffer->SetSize(indexCount, false, false);
+            indexData.Resize(indexCount * sizeof(unsigned short));
+        }
+
+        // Construct the index buffer
+        unsigned currentIndexOffset = 0;
+        const unsigned indexSize = indexBuffer_->GetIndexSize();
+        for (unsigned objIndex = 0; objIndex < transforms.Size(); ++objIndex, currentIndexOffset += GetVertexCount())
+        {
+            // Macro gets index at a position, the offsets the value for the object index, and subtracts vertex start (to offset when a VBO is shared with multiple IBOs)
+            #define INDEX_ASSIGNMENT(idxType, writeMethod) indexData. writeMethod (*(((idxType *)srcIndexData) + index) + currentIndexOffset - GetVertexStart());
+            if (largeIndices)
+            {
+                if (indexBuffer_->GetIndexSize() == sizeof(unsigned short))
+                {
+                    for (unsigned index = GetIndexStart(); index < GetIndexStart() + GetIndexCount(); ++index)
+                        INDEX_ASSIGNMENT(unsigned short, WriteUInt);
+                }
+                else
+                {
+                    for (unsigned index = GetIndexStart(); index < GetIndexStart() + GetIndexCount(); ++index)
+                        INDEX_ASSIGNMENT(unsigned, WriteUInt);
+                }
+            }
+            else
+            {
+                if (indexBuffer_->GetIndexSize() == sizeof(unsigned short))
+                {
+                    for (unsigned index = 0; index < GetIndexCount(); ++index)
+                        INDEX_ASSIGNMENT(unsigned short, WriteUShort);
+                }
+                else
+                {
+                    for (unsigned index = GetIndexStart(); index < GetIndexStart() + GetIndexCount(); ++index)
+                        INDEX_ASSIGNMENT(unsigned, WriteUShort);
+                }
+            }
+            #undef INDEX_ASSIGNMENT
+        }
+
+        combinedIndexBuffer->SetData(indexData.GetModifiableData());
+        combinedGeometry->SetIndexBuffer(combinedIndexBuffer);
+    }
+
+    // Set our draw range now that index buffer is finished
+    combinedGeometry->SetDrawRange(TRIANGLE_LIST, 0, indexCount, false);
+    combinedGeometry->indexStart_ = 0;
+    combinedGeometry->indexCount_ = indexCount;
+    combinedGeometry->vertexStart_ = 0;
+    combinedGeometry->vertexCount_ = GetVertexCount() * transforms.Size();
+    return combinedGeometry;
+}
+
+Geometry* Geometry::CreateConcatenatedList(unsigned numberOfInstances) const
+{
+    PODVector<Matrix3x4> transforms;
+    Matrix3x4 transMat = Matrix3x4::IDENTITY;
+    for (unsigned i = 0; i < numberOfInstances; ++i)
+        transforms.Push(transMat);
+    return CreatePretransformedList(transforms, false);
 }
 
 }

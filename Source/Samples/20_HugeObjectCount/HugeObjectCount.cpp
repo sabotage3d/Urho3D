@@ -104,9 +104,10 @@ void HugeObjectCount::CreateScene()
         light->SetColor(Color(0.7f, 0.35f, 0.0f));
 
         // Create individual box StaticModels in the scene
-        for (int y = -125; y < 125; ++y)
+        int gridSize = 10;
+        for (int y = -gridSize; y < gridSize; ++y)
         {
-            for (int x = -125; x < 125; ++x)
+            for (int x = -gridSize; x < gridSize; ++x)
             {
                 Node* boxNode = scene_->CreateChild("Box");
                 boxNode->SetPosition(Vector3(x * 0.3f, 0.0f, y * 0.3f));
@@ -124,10 +125,12 @@ void HugeObjectCount::CreateScene()
 
         // Create StaticModelGroups in the scene
         StaticModelGroup* lastGroup = 0;
-
-        for (int y = -125; y < 125; ++y)
+        
+        //orig 125
+        int gridSize = 10;
+        for (int y = -gridSize; y < gridSize; ++y)
         {
-            for (int x = -125; x < 125; ++x)
+            for (int x = -gridSize; x < gridSize; ++x)
             {
                 // Create new group if no group yet, or the group has already "enough" objects. The tradeoff is between culling
                 // accuracy and the amount of CPU processing needed for all the objects. Note that the group's own transform

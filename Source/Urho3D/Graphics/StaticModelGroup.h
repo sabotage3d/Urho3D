@@ -69,12 +69,19 @@ public:
 
     /// Return node IDs attribute.
     const VariantVector& GetNodeIDsAttr() const { return nodeIDsAttr_; }
+    
+    /// Static batching methods
+    bool IsStaticBatch() const { return staticBatch_; };
+    void SetStaticBatch(bool batchAsStatic);
 
 protected:
     /// Handle scene node enabled status changing.
     virtual void OnNodeSetEnabled(Node* node);
     /// Recalculate the world-space bounding box.
     virtual void OnWorldBoundingBoxUpdate();
+    
+    //Static batching methods
+    void OnSetEnabled();
 
 private:
     /// Update node IDs attribute and ensure the transforms vector has the right size.
@@ -90,6 +97,10 @@ private:
     unsigned numWorldTransforms_;
     /// Whether node IDs have been set and nodes should be searched for during ApplyAttributes.
     bool nodeIDsDirty_;
+    
+    /// Enable staticBatch
+    bool staticBatch_;
+    Vector< SharedPtr<Geometry> > precalculatedGeometries_;
 };
 
 }

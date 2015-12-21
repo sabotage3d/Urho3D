@@ -115,6 +115,10 @@ public:
 
     /// Return whether has empty draw range.
     bool IsEmpty() const { return indexCount_ == 0 && vertexCount_ == 0; }
+    
+    //Static batching
+    Geometry* CreatePretransformedList(PODVector<Matrix3x4> transforms, bool applyTransforms) const;
+    Geometry* CreateConcatenatedList(unsigned numberOfInstances) const;
 
 private:
     /// Locate vertex buffer with position data.

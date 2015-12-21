@@ -26,11 +26,15 @@
 #include "../Graphics/Batch.h"
 #include "../Graphics/Camera.h"
 #include "../Graphics/Geometry.h"
+#include "../Graphics/IndexBuffer.h"
+#include "../IO/Log.h"
 #include "../Graphics/Material.h"
+#include "../Graphics/Model.h"
 #include "../Graphics/OcclusionBuffer.h"
 #include "../Graphics/OctreeQuery.h"
 #include "../Graphics/StaticModelGroup.h"
 #include "../Scene/Scene.h"
+#include "../Graphics/VertexBuffer.h"
 
 #include "../DebugNew.h"
 
@@ -41,7 +45,8 @@ extern const char* GEOMETRY_CATEGORY;
 
 StaticModelGroup::StaticModelGroup(Context* context) :
     StaticModel(context),
-    nodeIDsDirty_(false)
+    nodeIDsDirty_(false),
+    staticBatch_(false)
 {
     // Initialize the default node IDs attribute
     UpdateNodeIDs();
@@ -58,6 +63,15 @@ void StaticModelGroup::RegisterObject(Context* context)
     URHO3D_COPY_BASE_ATTRIBUTES(StaticModel);
     URHO3D_ACCESSOR_ATTRIBUTE("Instance Nodes", GetNodeIDsAttr, SetNodeIDsAttr, VariantVector, Variant::emptyVariantVector,
         AM_DEFAULT | AM_NODEIDVECTOR);
+    //URHO3D_ACCESSOR_ATTRIBUTE("Static Batch", IsStaticBatch, SetStaticBatch, bool, true, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Static Batch", IsStaticBatch, SetStaticBatch, bool, true, AM_DEFAULT);
+}
+
+void StaticModelGroup::OnSetEnabled()
+{
+    StaticModel::OnSetEnabled();
+    if (staticBatch_)
+        precalculatedGeometries_.Clear();
 }
 
 void StaticModelGroup::ApplyAttributes()
@@ -163,25 +177,57 @@ void StaticModelGroup::ProcessRayQuery(const RayOctreeQuery& query, PODVector<Ra
 
 void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
 {
+    staticBatch_ = true;
     // Getting the world bounding box ensures the transforms are updated
     const BoundingBox& worldBoundingBox = GetWorldBoundingBox();
     const Matrix3x4& worldTransform = node_->GetWorldTransform();
     distance_ = frame.camera_->GetDistance(worldBoundingBox.Center());
-
-    if (batches_.Size() > 1)
+    URHO3D_LOGERROR("UpdateBatches");
+    if (staticBatch_)
     {
+        if (precalculatedGeometries_.Empty() && worldTransforms_.Size() > 0)
+        {
+            for (unsigned i = 0; i < batches_.Size(); ++i)
+                precalculatedGeometries_.Push(SharedPtr<Geometry>(batches_[i].geometry_->CreatePretransformedList(worldTransforms_, true)));
+        }
+        else
+        {
+            // Check for data loss
+            for (unsigned i = 0; i < precalculatedGeometries_.Size(); ++i)
+            {
+                if (precalculatedGeometries_[i] && (precalculatedGeometries_[i]->GetIndexBuffer()->IsDataLost() || precalculatedGeometries_[i]->GetVertexBuffer(0)->IsDataLost()))
+                    precalculatedGeometries_[i] = model_->GetGeometry(i, 0)->CreatePretransformedList(worldTransforms_, true);
+            }
+        }
+
         for (unsigned i = 0; i < batches_.Size(); ++i)
         {
             batches_[i].distance_ = frame.camera_->GetDistance(worldTransform * geometryData_[i].center_);
-            batches_[i].worldTransform_ = numWorldTransforms_ ? &worldTransforms_[0] : &Matrix3x4::IDENTITY;
-            batches_[i].numWorldTransforms_ = numWorldTransforms_;
+            batches_[i].worldTransform_ = &worldTransform;
+            batches_[i].numWorldTransforms_ = 1;
+            batches_[i].geometry_ = precalculatedGeometries_[i];
+            batches_[i].material_ = GetMaterial(i);
         }
     }
-    else if (batches_.Size() == 1)
+    else
     {
-        batches_[0].distance_ = distance_;
-        batches_[0].worldTransform_ = numWorldTransforms_ ? &worldTransforms_[0] : &Matrix3x4::IDENTITY;
-        batches_[0].numWorldTransforms_ = numWorldTransforms_;
+        if (batches_.Size() > 1)
+        {
+            for (unsigned i = 0; i < batches_.Size(); ++i)
+            {
+                batches_[i].distance_ = frame.camera_->GetDistance(worldTransform * geometryData_[i].center_);
+                batches_[i].worldTransform_ = numWorldTransforms_ ? &worldTransforms_[0] : &Matrix3x4::IDENTITY;
+                batches_[i].numWorldTransforms_ = numWorldTransforms_;
+                batches_[i].geometry_ = model_->GetGeometry(0, 0);
+            }
+        }
+        else if (batches_.Size() == 1)
+        {
+            batches_[0].distance_ = distance_;
+            batches_[0].worldTransform_ = numWorldTransforms_ ? &worldTransforms_[0] : &Matrix3x4::IDENTITY;
+            batches_[0].numWorldTransforms_ = numWorldTransforms_;
+            batches_[0].geometry_ = model_->GetGeometry(0, 0);
+        }
     }
 
     float scale = worldBoundingBox.Size().DotProduct(DOT_SCALE);
@@ -190,7 +236,9 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
     if (newLodDistance != lodDistance_)
     {
         lodDistance_ = newLodDistance;
-        CalculateLodLevels();
+        // For memory consumption reasons static batches ignore level of detail
+        if (!staticBatch_)
+            CalculateLodLevels();
     }
 }
 
@@ -257,6 +305,7 @@ bool StaticModelGroup::DrawOcclusion(OcclusionBuffer* buffer)
             unsigned indexCount = geometry->GetIndexCount();
 
             // Draw and check for running out of triangles
+            //if (!buffer->Draw(worldTransforms_[i], vertexData, vertexSize, indexData, indexSize, indexStart, indexCount))
             if (!buffer->AddTriangles(worldTransforms_[i], vertexData, vertexSize, indexData, indexSize, indexStart, indexCount))
                 return false;
         }
@@ -316,6 +365,19 @@ void StaticModelGroup::RemoveAllInstanceNodes()
 Node* StaticModelGroup::GetInstanceNode(unsigned index) const
 {
     return index < instanceNodes_.Size() ? instanceNodes_[index] : (Node*)0;
+}
+
+void StaticModelGroup::SetStaticBatch(bool batchAsStatic)
+{
+    if (staticBatch_ != batchAsStatic)
+    {
+        staticBatch_ = batchAsStatic;
+        if (!staticBatch_)
+            precalculatedGeometries_.Clear();
+
+        OnMarkedDirty(GetNode());
+        MarkNetworkUpdate();
+    }
 }
 
 void StaticModelGroup::SetNodeIDsAttr(const VariantVector& value)
