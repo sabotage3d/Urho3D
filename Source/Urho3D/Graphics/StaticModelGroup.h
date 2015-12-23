@@ -28,6 +28,7 @@ namespace Urho3D
 {
 
 class Geometry;
+class VectorBuffer;
 
 /// Renders several object instances while culling and receiving light as one unit. Can be used as a CPU-side optimization, but note that also regular StaticModels will use instanced rendering if possible.
 class URHO3D_API StaticModelGroup : public StaticModel
@@ -75,7 +76,7 @@ public:
     void OnSetEnabled();
     bool IsStatic() const;
     void SetStatic(bool isStatic);
-    void AssemblyBlob(Geometry** dest, Geometry* source);
+    void AssembleBlob(Geometry** dest, Geometry* source);
 
 protected:
     /// Handle scene node enabled status changing.
@@ -98,11 +99,14 @@ private:
     /// Whether node IDs have been set and nodes should be searched for during ApplyAttributes.
     bool nodeIDsDirty_;
     bool isStatic_;
-    Vector<SharedPtr<Geometry>> blobGeometries_;
+    //Vector<SharedPtr<Geometry>> blobGeometries_;
     PODVector<Matrix3x4> blobInstancesMatrices_;
     PODVector<bool> isBlobGeometryInstanceNeedToUpdate_;
     Vector<SourceBatch> preservedOriginalBatch_; 
     Vector<SourceBatch> blobBatches_;
+    bool dirtyBlob_;
+    //VectorBuffer* prevIndexBlob;
+    //VectorBuffer* prevVertexBlob;
 };
 
 }

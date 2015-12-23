@@ -51,10 +51,15 @@ StaticModelGroup::StaticModelGroup(Context* context) :
 {
     // Initialize the default node IDs attribute
     UpdateNodeIDs();
+    //prevVertexBlob = new VectorBuffer();
+    //prevIndexBlob = new VectorBuffer();
+
 }
 
 StaticModelGroup::~StaticModelGroup()
 {
+    //if (prevVertexBlob) delete prevVertexBlob;
+    //if (prevIndexBlob) delete prevIndexBlob;
 }
 
 void StaticModelGroup::RegisterObject(Context* context)
@@ -132,6 +137,7 @@ void StaticModelGroup::SetStatic(bool isStatic)
         }
     }
 
+    dirtyBlob_ = true;
     isStatic_ = isStatic;
 }
 
@@ -247,17 +253,17 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
     // Static instansing with blob
     if (isStatic_) 
     {
-
+        
         // Check instances matrix array existing or equal size with active instances
         if ((blobInstancesMatrices_.Empty() && worldTransforms_.Size()) || (blobInstancesMatrices_.Size() != worldTransforms_.Size()))
         {
             blobInstancesMatrices_.Resize(worldTransforms_.Size());
             isBlobGeometryInstanceNeedToUpdate_.Resize(worldTransforms_.Size());
+            dirtyBlob_ = true;            
         }
 
         // Check matrix updating if needed
-        bool dirtyBlob = false;
-        if (blobInstancesMatrices_.Size() && worldTransforms_.Size())
+        if (blobInstancesMatrices_.Size() == worldTransforms_.Size())
         {
 
             for (int i = 0; i < blobInstancesMatrices_.Size(); i++) 
@@ -266,31 +272,34 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
                 const Matrix3x4& instanceWorldTransformInverse_ = (worldTransformInverse * worldTransforms_[i]);
                 // compare previous tranformation values with new
                 isBlobGeometryInstanceNeedToUpdate_[i] = !(blobInstancesMatrices_[i].Equals(instanceWorldTransformInverse_));
-                //isBlobGeometryInstanceNeedToUpdate_[i] = !(blobInstancesMatrices_[i].Equals(worldTransforms_[i]);
+                //isBlobGeometryInstanceNeedToUpdate_[i] = !(blobInstancesMatrices_[i].Equals(worldTransforms_[i]));
                 
                 // Update instance transforms if needed
                 if (isBlobGeometryInstanceNeedToUpdate_[i]) 
                 {
                     blobInstancesMatrices_[i] = instanceWorldTransformInverse_;
                     //blobInstancesMatrices_[i] = (worldTransforms_[i]);
+
+                    dirtyBlob_ = true;
                 }
 
-                if (!dirtyBlob) dirtyBlob = isBlobGeometryInstanceNeedToUpdate_[i];
+                //if (!dirtyBlob_) dirtyBlob_ = isBlobGeometryInstanceNeedToUpdate_[i];
             }
         }
 
         // TODO:: Accuracy update blob
-        if (blobInstancesMatrices_.Size() && dirtyBlob)
+        if (blobInstancesMatrices_.Size())
         {
             for (int i = 0; i < blobBatches_.Size(); i++)
             {
                 blobBatches_[i].distance_ = frame.camera_->GetDistance(worldTransform * geometryData_[i].center_);;
                 blobBatches_[i].worldTransform_ = &worldTransform; // Use parent node transformations for frustrum cull
+                //blobBatches_[i].worldTransform_ = &Matrix3x4::IDENTITY;
                 blobBatches_[i].numWorldTransforms_ = 1;
                 
                 // if Blob are dirty update
-                if (dirtyBlob)
-                    AssemblyBlob(&blobBatches_[i].geometry_, preservedOriginalBatch_[i].geometry_);
+                if (dirtyBlob_)
+                    AssembleBlob(&blobBatches_[i].geometry_, preservedOriginalBatch_[i].geometry_);
 
                 // Use std SourceBatch for rendering feed 
                 batches_[i] = blobBatches_[i];
@@ -321,7 +330,7 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
     float scale = worldBoundingBox.Size().DotProduct(DOT_SCALE);
     float newLodDistance = frame.camera_->GetLodDistance(distance_, scale, lodBias_);
 
-    if (newLodDistance != lodDistance_)
+    if ((newLodDistance != lodDistance_) && (isStatic_ == false))
     {
         lodDistance_ = newLodDistance;
         CalculateLodLevels();
@@ -530,7 +539,7 @@ void StaticModelGroup::UpdateNodeIDs()
     }
 }
 
-void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
+void StaticModelGroup::AssembleBlob(Geometry** dest, Geometry* source)
 {
     if (blobInstancesMatrices_.Empty()) 
         return;
@@ -538,14 +547,15 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
     if (!source->GetNumVertexBuffers())
     {
         URHO3D_LOGERROR("StaticModelGroup :: Source geometry do not have initialized VB");
+        isStatic_ = false;
         return;
     } 
     
     
     VertexBuffer* sourceVB = source->GetVertexBuffer(0);
     IndexBuffer* sourceIB = source->GetIndexBuffer();
-    sourceIB->SetShadowed(true);
-    sourceVB->SetShadowed(true);
+    //sourceIB->SetShadowed(true);
+    //sourceVB->SetShadowed(true);
 
     unsigned int vertexCount = source->GetVertexCount();
     unsigned int vertexSize = sourceVB->GetVertexSize();
@@ -554,6 +564,7 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
     if (vertexCount == 0 || vertexSize == 0) 
     {
         URHO3D_LOGERROR("StaticModelGroup :: Source geometry with empty VB");
+        isStatic_ = false;
         return;
     }
 
@@ -561,6 +572,7 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
     if (!sourceVBData)
     {
         URHO3D_LOGERROR("StaticModelGroup :: VB do not have shadowed data");
+        isStatic_ = false;
         return;
     }
 
@@ -592,8 +604,21 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
     for (int instance = 0; instance < blobInstancesMatrices_.Size(); instance++) 
     {
         //TODO:: if (!isBlobGeometryInstanceNeedToUpdate_[instance]) continue;
-        //TODO:: copy not trnsformed blob ranges from preserved blob buffer     
-        blobData.Write(sourceVBData + source->GetVertexStart() * vertexSize, vertexCount*vertexSize);
+        //TODO:: copy not trnsformed blob ranges from preserved blob buffer
+
+        // if no need update instance transformation copy from preserved blob
+        //if (!isBlobGeometryInstanceNeedToUpdate_[instance])  
+        //{
+        //    // only if preserved blob already store some data
+        //    if (prevVertexBlob->GetSize() == blobData.GetSize()) 
+        //        blobData.Write(prevVertexBlob->GetData() + instance * source->GetVertexStart() * vertexSize, vertexCount*vertexSize);
+        //    else
+        //        blobData.Write(sourceVBData + source->GetVertexStart() * vertexSize, vertexCount*vertexSize);
+        //}
+        //else 
+        //{
+            blobData.Write(sourceVBData + source->GetVertexStart() * vertexSize, vertexCount*vertexSize);
+        //}     
     }
 
     if (1)
@@ -611,6 +636,11 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
         for (unsigned instance = 0; instance < blobInstancesMatrices_.Size(); instance++)
         {
             //TODO:: if (!isBlobGeometryInstanceNeedToUpdate_[instance]) continue;
+            
+            // if this range of blob already feeded  
+            //if (prevVertexBlob->GetSize() == blobData.GetSize())
+            //    if (!isBlobGeometryInstanceNeedToUpdate_[instance]) continue;
+
 
             const Matrix3x4 transform = blobInstancesMatrices_[instance];
             const Matrix3 rotationMat = transform.RotationMatrix();
@@ -648,6 +678,10 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
     dVB->SetData(blobData.GetData());
     (*dest)->SetNumVertexBuffers(1);
     (*dest)->SetVertexBuffer(0, dVB, elementMask);
+
+    //preserve vectex blob for accuracy update
+    //prevVertexBlob->Resize(blobData.GetSize());
+    //prevVertexBlob->Write(blobData.GetData(), blobData.GetSize());
 
     const unsigned char* srcIndexData = sourceIB ? sourceIB->GetShadowData() : 0;
     if (srcIndexData != 0) 
@@ -725,12 +759,18 @@ void StaticModelGroup::AssemblyBlob(Geometry** dest, Geometry* source)
 
                 dIB->SetData(indexBlob.GetData());
                 (*dest)->SetIndexBuffer(dIB);
+
+                //preserve index blob for accuracy update
+                //prevIndexBlob->Resize(indexBlob.GetSize());
+                //prevIndexBlob->Write(indexBlob.GetData(), indexBlob.GetSize());
+
             }
         }
     
         (*dest)->SetDrawRange(TRIANGLE_LIST, 0, indexCount, false);
     }
-}
 
+    dirtyBlob_ = false;
+}
 }
 
