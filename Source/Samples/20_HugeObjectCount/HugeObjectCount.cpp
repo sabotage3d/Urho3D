@@ -42,6 +42,8 @@
 
 #include <Urho3D/DebugNew.h>
 
+#include <iostream>
+
 URHO3D_DEFINE_APPLICATION_MAIN(HugeObjectCount)
 
 HugeObjectCount::HugeObjectCount(Context* context) :
@@ -101,6 +103,7 @@ void HugeObjectCount::CreateScene()
 
     if (!useGroups_)
     {
+      
         light->SetColor(Color(0.7f, 0.35f, 0.0f));
 
         // Create individual box StaticModels in the scene
@@ -120,14 +123,17 @@ void HugeObjectCount::CreateScene()
     }
     else
     {
+        std::cout << "Using Groups: " << std::endl;
+        
         light->SetColor(Color(0.6f, 0.6f, 0.6f));
         light->SetSpecularIntensity(1.5f);
 
         // Create StaticModelGroups in the scene
         StaticModelGroup* lastGroup = 0;
+        //lastGroup->SetModel(cache->GetResource<Model>("Models/Box.mdl"));
         
         //orig 125
-        int gridSize = 10;
+        int gridSize = 2;
         for (int y = -gridSize; y < gridSize; ++y)
         {
             for (int x = -gridSize; x < gridSize; ++x)
@@ -135,18 +141,22 @@ void HugeObjectCount::CreateScene()
                 // Create new group if no group yet, or the group has already "enough" objects. The tradeoff is between culling
                 // accuracy and the amount of CPU processing needed for all the objects. Note that the group's own transform
                 // does not matter, and it does not render anything if instance nodes are not added to it
-                if (!lastGroup || lastGroup->GetNumInstanceNodes() >= 25 * 25)
+                if (!lastGroup || lastGroup->GetNumInstanceNodes() >= 25*25)
                 {
-                    Node* boxGroupNode = scene_->CreateChild("BoxGroup");
-                    lastGroup = boxGroupNode->CreateComponent<StaticModelGroup>();
-                    lastGroup->SetModel(cache->GetResource<Model>("Models/Box.mdl"));
+                   Node* boxGroupNode = scene_->CreateChild("BoxGroup");
+                   lastGroup = boxGroupNode->CreateComponent<StaticModelGroup>();
+                   lastGroup->SetModel(cache->GetResource<Model>("Models/Box.mdl"));
                 }
 
                 Node* boxNode = scene_->CreateChild("Box");
                 boxNode->SetPosition(Vector3(x * 0.3f, 0.0f, y * 0.3f));
                 boxNode->SetScale(0.25f);
                 boxNodes_.Push(SharedPtr<Node>(boxNode));
+                
                 lastGroup->AddInstanceNode(boxNode);
+                lastGroup->SetStaticBatch(true);
+                
+                
             }
         }
     }

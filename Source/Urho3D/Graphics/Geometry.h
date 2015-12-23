@@ -154,6 +154,8 @@ private:
     unsigned rawIndexSize_;
     /// LOD distance.
     float lodDistance_;
+    
+    
 };
 
 }

@@ -449,16 +449,28 @@ Geometry* Geometry::CreatePretransformedList(PODVector<Matrix3x4> transforms, bo
     }
 
     // Prepare to construct the vertex buffer
-    //Geometry* combinedGeometry = new Geometry(context_);
-    SharedPtr<Geometry> combinedGeometry(new Geometry(context_));
+    Geometry* combinedGeometry = new Geometry(context_);
+    //SharedPtr<Geometry> combinedGeometry(new Geometry(context_));
     //VertexBuffer* combinedVertBuffer = new VertexBuffer(context_, false);
     SharedPtr<VertexBuffer> combinedVertBuffer(new VertexBuffer(context_));
+    //vertexBuffers_.At(0)-> = combinedVertBuffer;
+    
+    //combinedVertBuffer->Unlock();
+    
+    //SharedPtr<VertexBuffer> combinedVertBuffer(new VertexBuffer(context_));
     std::cout << "Vertex Count: " << GetVertexCount() << std::endl;
     std::cout << "Transform Size: " << transforms.Size() << std::endl;
-
-    combinedVertBuffer->SetShadowed(true);
-    combinedVertBuffer->SetSize(GetVertexCount() * transforms.Size(), srcElemMask, true);
-    //combinedVertBuffer->SetSize(this->GetVertexCount() * transforms.Size(), MASK_POSITION|MASK_NORMAL);
+    
+    //Graphics* graphics;
+    //vertexBuffers_.Push((const)(combinedVertBuffer));
+    //graphics->SetVertexBuffer(combinedVertBuffer);
+    //combinedVertBuffer->SetShadowed(true);
+    //combinedVertBuffer->SetSize(GetVertexCount() * transforms.Size(), srcElemMask, true);
+    SharedPtr<Graphics> graphics(new Graphics(context_));
+    graphics->SetVertexBuffer(combinedVertBuffer);
+    combinedVertBuffer->IsDynamic();
+    combinedVertBuffer->SetSize(GetVertexCount() * transforms.Size(), vertexBuffers_[0]->GetElementMask(), false);
+    //combinedVertBuffer->SetSize(1, MASK_POSITION|MASK_NORMAL);
     VectorBuffer vertexData;
     
     // Initial write of the vertex data as received

@@ -38,6 +38,8 @@
 
 #include "../DebugNew.h"
 
+#include <iostream>
+
 namespace Urho3D
 {
 
@@ -188,7 +190,23 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
         if (precalculatedGeometries_.Empty() && worldTransforms_.Size() > 0)
         {
             for (unsigned i = 0; i < batches_.Size(); ++i)
-                precalculatedGeometries_.Push(SharedPtr<Geometry>(batches_[i].geometry_->CreatePretransformedList(worldTransforms_, true)));
+            {
+                SharedPtr<VertexBuffer> combinedVertBuffer(new VertexBuffer(context_));
+                //combinedVertBuffer->SetShadowed(true);
+                //combinedVertBuffer->SetSize(batches_[i].geometry_->GetVertexCount(), MASK_POSITION, false);
+            
+                SharedPtr<Model> fromScratchModel(new Model(context_));
+                //SharedPtr<VertexBuffer> vb(new VertexBuffer(context_));
+                SharedPtr<IndexBuffer> ib(new IndexBuffer(context_));
+                SharedPtr<Geometry> geom(new Geometry(context_));
+                
+                // Shadowed buffer needed for raycasts to work, and so that data can be automatically restored on device loss
+                //vb->SetShadowed(true);
+                //vb->SetSize(10,  MASK_POSITION|MASK_NORMAL|MASK_TEXCOORD1|MASK_TEXCOORD2);
+                ib->SetShadowed(true);
+                ib->SetSize(10, false);
+            }
+                //precalculatedGeometries_.Push(SharedPtr<Geometry>(batches_[i].geometry_->CreatePretransformedList(worldTransforms_, true)));
         }
         else
         {
@@ -305,7 +323,6 @@ bool StaticModelGroup::DrawOcclusion(OcclusionBuffer* buffer)
             unsigned indexCount = geometry->GetIndexCount();
 
             // Draw and check for running out of triangles
-            //if (!buffer->Draw(worldTransforms_[i], vertexData, vertexSize, indexData, indexSize, indexStart, indexCount))
             if (!buffer->AddTriangles(worldTransforms_[i], vertexData, vertexSize, indexData, indexSize, indexStart, indexCount))
                 return false;
         }
