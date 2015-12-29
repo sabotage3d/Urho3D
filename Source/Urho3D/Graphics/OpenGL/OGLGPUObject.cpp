@@ -27,8 +27,13 @@
 
 #include "../../DebugNew.h"
 
+#include <iostream>
+
 namespace Urho3D
 {
+    
+    using std::cout;
+    using std::endl;
 
 GPUObject::GPUObject(Graphics* graphics) :
     graphics_(graphics),
@@ -38,6 +43,8 @@ GPUObject::GPUObject(Graphics* graphics) :
 {
     if (graphics_)
         graphics->AddGPUObject(this);
+    
+    cout << "Object: " << object_ << endl;
 }
 
 GPUObject::~GPUObject()

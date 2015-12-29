@@ -50,6 +50,7 @@
 #include "../../Graphics/ShaderVariation.h"
 #include "../../Graphics/Skybox.h"
 #include "../../Graphics/StaticModelGroup.h"
+#include "../../Graphics/CustomBatch.h"
 #include "../../Graphics/Technique.h"
 #include "../../Graphics/Terrain.h"
 #include "../../Graphics/TerrainPatch.h"
@@ -3299,6 +3300,7 @@ void RegisterGraphicsLibrary(Context* context)
     Light::RegisterObject(context);
     StaticModel::RegisterObject(context);
     StaticModelGroup::RegisterObject(context);
+    CustomBatch::RegisterObject(context);
     Skybox::RegisterObject(context);
     AnimatedModel::RegisterObject(context);
     AnimationController::RegisterObject(context);

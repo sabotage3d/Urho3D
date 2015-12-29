@@ -29,8 +29,12 @@
 
 #include "../../DebugNew.h"
 
+#include <iostream>
+
 namespace Urho3D
 {
+    using std::cout;
+    using std::endl;
 
 const unsigned VertexBuffer::elementSize[] =
 {
@@ -117,6 +121,9 @@ VertexBuffer::VertexBuffer(Context* context, bool forceHeadless) :
     // Force shadowing mode if graphics subsystem does not exist
     if (!graphics_)
         shadowed_ = true;
+    
+    Graphics* graphics =  GetSubsystem<Graphics>();
+    cout << "Calling graphics:" << graphics->GetWidth() << std::endl;
 }
 
 VertexBuffer::~VertexBuffer()
@@ -126,8 +133,11 @@ VertexBuffer::~VertexBuffer()
 
 void VertexBuffer::OnDeviceReset()
 {
+    
+
     if (!object_)
     {
+
         Create();
         dataLost_ = !UpdateToGPU();
     }
@@ -401,6 +411,9 @@ bool VertexBuffer::Create()
             URHO3D_LOGWARNING("Vertex buffer creation while device is lost");
             return true;
         }
+        
+        //graphics_->SetForceGL2(true);
+        //cout << graphics_->GetWidth() << endl;
 
         if (!object_)
             glGenBuffers(1, &object_);

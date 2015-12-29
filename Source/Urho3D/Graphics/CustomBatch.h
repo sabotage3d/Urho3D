@@ -23,20 +23,24 @@
 #pragma once
 
 #include "../Graphics/StaticModel.h"
+#include "../Graphics/Drawable.h"
 
 namespace Urho3D
 {
     
     /// Renders several object instances while culling and receiving light as one unit. Can be used as a CPU-side optimization, but note that also regular StaticModels will use instanced rendering if possible.
-    class URHO3D_API StaticModelGroup : public StaticModel
+    //class URHO3D_API CustomBatch : public StaticModel
+    class URHO3D_API CustomBatch : public Drawable
+    
     {
-        URHO3D_OBJECT(StaticModelGroup, StaticModel);
+        //URHO3D_OBJECT(CustomBatch, StaticModel);
+         URHO3D_OBJECT(StaticModel, Drawable);
         
     public:
         /// Construct.
-        StaticModelGroup(Context* context);
+        CustomBatch(Context* context);
         /// Destruct.
-        virtual ~StaticModelGroup();
+        virtual ~CustomBatch();
         /// Register object factory. StaticModel must be registered first.
         static void RegisterObject(Context* context);
         
@@ -46,6 +50,17 @@ namespace Urho3D
         virtual void ProcessRayQuery(const RayOctreeQuery& query, PODVector<RayQueryResult>& results);
         /// Calculate distance and prepare batches for rendering. May be called from worker thread(s), possibly re-entrantly.
         virtual void UpdateBatches(const FrameInfo& frame);
+        
+        
+        /// Update before octree reinsertion. Is called from a worker thread.
+        virtual void Update(const FrameInfo& frame);
+        /// Calculate distance and prepare batches for rendering. May be called from worker thread(s), possibly re-entrantly.
+        //virtual void UpdateBatches(const FrameInfo& frame);
+        /// Prepare geometry for rendering.
+        virtual void UpdateGeometry(const FrameInfo& frame);
+        
+        virtual UpdateGeometryType GetUpdateGeometryType();
+        
         /// Return number of occlusion geometry triangles.
         virtual unsigned GetNumOccluderTriangles();
         /// Draw to occlusion buffer. Return true if did not run out of triangles.
@@ -70,6 +85,8 @@ namespace Urho3D
         /// Return node IDs attribute.
         const VariantVector& GetNodeIDsAttr() const { return nodeIDsAttr_; }
         
+        void AssembleGeometry(bool dirty);
+        
     protected:
         /// Handle scene node enabled status changing.
         virtual void OnNodeSetEnabled(Node* node);
@@ -90,6 +107,16 @@ namespace Urho3D
         unsigned numWorldTransforms_;
         /// Whether node IDs have been set and nodes should be searched for during ApplyAttributes.
         bool nodeIDsDirty_;
+        
+        //dirty pattern
+        bool dirty_;
+        
+        /// Geometry.
+        SharedPtr<Geometry> geometry_;
+        /// Vertex buffer.
+        SharedPtr<VertexBuffer> vertexBuffer_;
+        /// Index buffer.
+        SharedPtr<IndexBuffer> indexBuffer_;
     };
     
 }

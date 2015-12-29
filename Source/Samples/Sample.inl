@@ -162,6 +162,8 @@ void Sample::SetWindowTitleAndIcon()
 {
     ResourceCache* cache = GetSubsystem<ResourceCache>();
     Graphics* graphics = GetSubsystem<Graphics>();
+    graphics->SetMode(640,480);
+    //graphics->SetForceGL2(true);
     Image* icon = cache->GetResource<Image>("Textures/UrhoIcon.png");
     graphics->SetWindowIcon(icon);
     graphics->SetWindowTitle("Urho3D Sample");
