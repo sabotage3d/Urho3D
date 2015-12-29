@@ -39,6 +39,8 @@
 
 #include "../DebugNew.h"
 
+#include <iostream>
+
 namespace Urho3D
 {
 
@@ -241,6 +243,26 @@ void StaticModelGroup::ProcessRayQuery(const RayOctreeQuery& query, PODVector<Ra
         }
     }
 }
+    
+void StaticModelGroup::UpdateGeometry(const FrameInfo& frame)
+{
+    if (dirtyBlob_)
+    {
+        std::cout << "Update" << std::endl;
+        for (int i = 0; i < blobBatches_.Size(); i++)
+        {
+            AssembleBlob(&dest_[i], source_[i]);
+        }
+    }
+    
+}
+    
+UpdateGeometryType StaticModelGroup::GetUpdateGeometryType()
+{
+    
+    return UPDATE_MAIN_THREAD;
+    
+}
 
 void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
 {
@@ -286,7 +308,7 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
                 //if (!dirtyBlob_) dirtyBlob_ = isBlobGeometryInstanceNeedToUpdate_[i];
             }
         }
-
+        
         // TODO:: Accuracy update blob
         if (blobInstancesMatrices_.Size())
         {
@@ -299,10 +321,16 @@ void StaticModelGroup::UpdateBatches(const FrameInfo& frame)
                 
                 // if Blob are dirty update
                 if (dirtyBlob_)
-                    AssembleBlob(&blobBatches_[i].geometry_, preservedOriginalBatch_[i].geometry_);
+                {
+                    dest_.Push(blobBatches_[i].geometry_);
+                    source_.Push(preservedOriginalBatch_[i].geometry_);
+                }
+                
+                    //AssembleBlob(&blobBatches_[i].geometry_, preservedOriginalBatch_[i].geometry_);
 
                 // Use std SourceBatch for rendering feed 
-                batches_[i] = blobBatches_[i];
+                //batches_[i] = blobBatches_[i];
+                batches_[i].geometry_ = dest_[i];
             }
         }
     }

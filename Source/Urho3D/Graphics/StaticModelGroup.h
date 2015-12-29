@@ -49,6 +49,10 @@ public:
     virtual void ProcessRayQuery(const RayOctreeQuery& query, PODVector<RayQueryResult>& results);
     /// Calculate distance and prepare batches for rendering. May be called from worker thread(s), possibly re-entrantly.
     virtual void UpdateBatches(const FrameInfo& frame);
+    
+    virtual void UpdateGeometry(const FrameInfo& frame);
+    
+    virtual UpdateGeometryType GetUpdateGeometryType();
     /// Return number of occlusion geometry triangles.
     virtual unsigned GetNumOccluderTriangles();
     /// Draw to occlusion buffer. Return true if did not run out of triangles.
@@ -107,6 +111,8 @@ private:
     bool dirtyBlob_;
     //VectorBuffer* prevIndexBlob;
     //VectorBuffer* prevVertexBlob;
+    Vector<Geometry*> dest_;
+    Vector<Geometry*> source_;
 };
 
 }

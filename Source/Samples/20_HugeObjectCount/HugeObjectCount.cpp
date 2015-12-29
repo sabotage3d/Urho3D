@@ -98,7 +98,8 @@ void HugeObjectCount::CreateScene()
     lightNode->SetDirection(Vector3(-0.6f, -1.0f, -0.8f)); // The direction vector does not need to be normalized
     Light* light = lightNode->CreateComponent<Light>();
     light->SetLightType(LIGHT_DIRECTIONAL);
-
+    
+    /*
     if (!useGroups_)
     {
         light->SetColor(Color(0.7f, 0.35f, 0.0f));
@@ -119,34 +120,42 @@ void HugeObjectCount::CreateScene()
     }
     else
     {
+     */
         light->SetColor(Color(0.6f, 0.6f, 0.6f));
         light->SetSpecularIntensity(1.5f);
 
         // Create StaticModelGroups in the scene
         StaticModelGroup* lastGroup = 0;
+        Node* boxGroupNode = scene_->CreateChild("BoxGroup");
+        lastGroup = boxGroupNode->CreateComponent<StaticModelGroup>();
 
-        for (int y = -125; y < 125; ++y)
+        lastGroup->SetModel(cache->GetResource<Model>("Models/Box.mdl"));
+        lastGroup->SetStatic(true);
+
+
+
+        for (int y = -20; y < 20; ++y)
         {
-            for (int x = -125; x < 125; ++x)
+            for (int x = -20; x < 20; ++x)
             {
                 // Create new group if no group yet, or the group has already "enough" objects. The tradeoff is between culling
                 // accuracy and the amount of CPU processing needed for all the objects. Note that the group's own transform
                 // does not matter, and it does not render anything if instance nodes are not added to it
-                if (!lastGroup || lastGroup->GetNumInstanceNodes() >= 25 * 25)
-                {
-                    Node* boxGroupNode = scene_->CreateChild("BoxGroup");
-                    lastGroup = boxGroupNode->CreateComponent<StaticModelGroup>();
-                    lastGroup->SetModel(cache->GetResource<Model>("Models/Box.mdl"));
-                }
+                //if (!lastGroup || lastGroup->GetNumInstanceNodes() >= 25 * 25)
+                //{
+
+                //g}
 
                 Node* boxNode = scene_->CreateChild("Box");
                 boxNode->SetPosition(Vector3(x * 0.3f, 0.0f, y * 0.3f));
                 boxNode->SetScale(0.25f);
                 boxNodes_.Push(SharedPtr<Node>(boxNode));
                 lastGroup->AddInstanceNode(boxNode);
+
             }
         }
-    }
+    
+    //}
 
     // Create the camera. Create it outside the scene so that we can clear the whole scene without affecting it
     if (!cameraNode_)

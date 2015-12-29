@@ -52,7 +52,7 @@ void Urho3DPlayer::Setup()
     // Read command line from a file if no arguments given. This is primarily intended for mobile platforms.
     // Note that the command file name uses a hardcoded path that does not utilize the resource system
     // properly (including resource path prefix), as the resource system is not yet initialized at this point
-    const String commandFileName = filesystem->GetProgramDir() + "Data/CommandLine.txt";
+    const String commandFileName = filesystem->GetProgramDir() + "Data/CommandLine2.txt";
     if (GetArguments().Empty() && filesystem->FileExists(commandFileName))
     {
         SharedPtr<File> commandFile(new File(context_, commandFileName));
