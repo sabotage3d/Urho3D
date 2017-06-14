@@ -45,7 +45,9 @@ static const int srcBlendFuncs[] =
     1,      // GL_ONE
     0x0305, // GL_ONE_MINUS_DST_ALPHA
     1,      // GL_ONE
-    0x0302  // GL_SRC_ALPHA
+    0x0302,  // GL_SRC_ALPHA
+    //test
+    1
 };
 
 static const int destBlendFuncs[] =
@@ -58,7 +60,9 @@ static const int destBlendFuncs[] =
     0x0303, // GL_ONE_MINUS_SRC_ALPHA
     0x0304, // GL_DST_ALPHA
     1,      // GL_ONE
-    1       // GL_ONE
+    1,       // GL_ONE
+    //test
+    1
 };
 
 #if URHO3D_CXX11

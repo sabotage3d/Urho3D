@@ -75,6 +75,8 @@ enum BlendMode
     BLEND_INVDESTALPHA,
     BLEND_SUBTRACT,
     BLEND_SUBTRACTALPHA,
+    //test
+    BLEND_REVEAL,
     MAX_BLENDMODES
 };
 
