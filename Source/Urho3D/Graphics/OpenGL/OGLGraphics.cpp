@@ -100,7 +100,8 @@ static const unsigned glSrcBlend[] =
     GL_ONE,
     GL_SRC_ALPHA,
     //test
-    GL_ZERO
+    GL_ZERO,
+    GL_SRC_ALPHA
 };
 
 static const unsigned glDestBlend[] =
@@ -115,6 +116,8 @@ static const unsigned glDestBlend[] =
     GL_ONE,
     GL_ONE,
     //test
+    //GL_ONE_MINUS_SRC_ALPHA,
+    GL_ONE_MINUS_SRC_COLOR,
     GL_ONE_MINUS_SRC_ALPHA
 };
 

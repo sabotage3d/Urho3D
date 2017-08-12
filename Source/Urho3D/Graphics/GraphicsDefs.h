@@ -77,6 +77,7 @@ enum BlendMode
     BLEND_SUBTRACTALPHA,
     //test
     BLEND_REVEAL,
+    BLEND_COMPOSITE,
     MAX_BLENDMODES
 };
 

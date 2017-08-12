@@ -47,6 +47,7 @@ static const int srcBlendFuncs[] =
     1,      // GL_ONE
     0x0302,  // GL_SRC_ALPHA
     //test
+    1,
     1
 };
 
@@ -62,6 +63,7 @@ static const int destBlendFuncs[] =
     1,      // GL_ONE
     1,       // GL_ONE
     //test
+    1,
     1
 };
 
